@@ -1,0 +1,445 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>⬡ Audio-Reactive Gravity</title>
+  <style>
+    html, body { margin:0; padding:0; height:100%; overflow:hidden; background:#05050f; color:#e9eef7; font-family: 'Courier New', Courier, ui-sans-serif, system-ui; }
+    #root { position:fixed; inset:0; }
+    canvas { display:block; }
+
+    /* Soundscape Overlay */
+    #overlay {
+      position: fixed; inset: 0;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 20px; z-index: 50; background: rgba(5, 5, 15, 0.85); backdrop-filter: blur(4px);
+      transition: opacity 0.5s;
+    }
+    #overlay.hidden { opacity: 0; pointer-events: none; }
+    .label { font-size: 11px; letter-spacing: 0.3em; text-transform: uppercase; color: rgba(255,255,255,0.5); }
+    #startBtn {
+      pointer-events: all; padding: 14px 36px; background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.22); color: #fff; cursor: pointer;
+      font-family: inherit; font-size: 12px; letter-spacing: 0.25em; text-transform: uppercase;
+      border-radius: 8px; transition: all 0.3s;
+    }
+    #startBtn:hover { border-color: rgba(255,255,255,0.8); background: rgba(255,255,255,0.1); transform: scale(1.02); }
+
+    /* Gravity HUD & Controls */
+    .hud {
+      position:fixed; top:12px; left:12px; font-size:11px; line-height:1.4;
+      background:rgba(0,0,0,.4); border:1px solid rgba(255,255,255,.1);
+      padding:10px 12px; border-radius:10px; backdrop-filter: blur(8px); user-select:none; z-index: 10;
+    }
+    .panel {
+      position:fixed; top:85px; left:12px; width:280px;
+      background:rgba(0,0,0,.4); border:1px solid rgba(255,255,255,.1);
+      padding:12px; border-radius:10px; backdrop-filter: blur(8px); user-select:none; z-index: 10;
+    }
+    .row { display:flex; align-items:center; gap:10px; margin:8px 0; font-size:11px; }
+    .row label { flex: 1 1 auto; opacity:.9; }
+    .row output { width:60px; text-align:right; font-variant-numeric: tabular-nums; opacity:.9; }
+    input[type="range"] { width:100%; accent-color: #7ba2ff; }
+    select, button.ui-btn {
+      background:rgba(255,255,255,.08); color:#e9eef7; border:1px solid rgba(255,255,255,.15);
+      border-radius:6px; padding:6px 10px; font-size:11px; font-family: inherit;
+    }
+    button.ui-btn { cursor:pointer; flex: 1; text-transform: uppercase; letter-spacing: 1px; }
+    button.ui-btn:active { transform: translateY(1px); }
+    .btnrow { display:flex; gap:10px; margin-top:12px; }
+
+    /* Audio Bands */
+    #bands {
+      position: fixed; bottom: 20px; right: 20px; font-size: 10px;
+      letter-spacing: 0.12em; text-transform: uppercase; color: rgba(255,255,255,0.4);
+      text-align: right; line-height: 2.2; pointer-events: none; z-index: 10;
+      background:rgba(0,0,0,.4); border:1px solid rgba(255,255,255,.1); padding:10px; border-radius:10px;
+    }
+    #bands span { display: inline-block; min-width: 90px; text-align: left; color: #7ba2ff; }
+    
+    .hint {
+      position:fixed; bottom:20px; left:50%; transform:translateX(-50%); font-size:11px; opacity:.6;
+      letter-spacing: 0.1em; text-transform: uppercase; user-select:none; z-index: 10;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="root"></div>
+
+  <div id="overlay">
+    <div class="label">Audio-Reactive Gravity</div>
+    <button id="startBtn">● Enable Microphone</button>
+    <div class="label">Three.js · Web Audio API · Barnes-Hut</div>
+  </div>
+
+  <div class="hud" id="hud">
+    <div>FPS: <span id="fps">--</span></div>
+    <div>Particles: <span id="pcount">--</span></div>
+    <div>Sim Time: <span id="simt">0.00</span> s</div>
+  </div>
+
+  <div class="panel">
+    <div class="row"><label for="g">Base Gravity (G)</label><output id="gOut">1.00</output></div>
+    <input id="g" type="range" min="0.00" max="5.00" step="0.01" value="1.00" />
+
+    <div class="row"><label for="eps">Softening ε</label><output id="epsOut">2.00</output></div>
+    <input id="eps" type="range" min="0.10" max="20.00" step="0.10" value="2.00" />
+
+    <div class="row"><label for="count">Particle Count</label><output id="countOut">2500</output></div>
+    <input id="count" type="range" min="500" max="5000" step="100" value="2500" />
+
+    <div class="row"><label for="mode">Colour Mode</label></div>
+    <select id="mode" style="width:100%;">
+      <option value="velocity">Velocity</option>
+      <option value="mass">Mass</option>
+      <option value="depth">Depth</option>
+    </select>
+
+    <div class="btnrow">
+      <button class="ui-btn" id="pauseBtn">⏸ Pause</button>
+      <button class="ui-btn" id="resetBtn">↺ Reset</button>
+    </div>
+  </div>
+
+  <div id="bands">
+    <div>Sub &nbsp;<span id="b-sub">————————————</span></div>
+    <div>Bass <span id="b-bass">————————————</span></div>
+    <div>Mid &nbsp;<span id="b-mid">————————————</span></div>
+    <div>High <span id="b-high">————————————</span></div>
+  </div>
+
+  <div class="hint">Drag to orbit · Scroll to zoom</div>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+
+  <script type="module">
+    import * as THREE from "three";
+    import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+    // =========================================================
+    // 1. HELPERS & MATH
+    // =========================================================
+    function clamp(x, a, b){ return Math.max(a, Math.min(b, x)); }
+    function hsvToRgb(h, s, v){
+      h = ((h % 1) + 1) % 1; const i = Math.floor(h * 6), f = h * 6 - i;
+      const p = v * (1 - s), q = v * (1 - f * s), t = v * (1 - (1 - f) * s);
+      switch (i % 6){
+        case 0: return [v, t, p]; case 1: return [q, v, p]; case 2: return [p, v, t];
+        case 3: return [p, q, v]; case 4: return [t, p, v]; case 5: return [v, p, q];
+      }
+    }
+    function randn(){
+      let u = 0, v = 0; while(u === 0) u = Math.random(); while(v === 0) v = Math.random();
+      return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+    }
+    function randomPointInSphere(radius){
+      let x = randn(), y = randn(), z = randn(); const len = Math.sqrt(x*x + y*y + z*z) || 1;
+      const r = radius * Math.cbrt(Math.random()); return [(x/len)*r, (y/len)*r, (z/len)*r];
+    }
+
+    // =========================================================
+    // 2. BARNES-HUT OCTREE (GRAVITY PHYSICS)
+    // =========================================================
+    const MAX_DEPTH = 18;
+    class Node {
+      constructor(cx, cy, cz, half, depth){
+        this.cx = cx; this.cy = cy; this.cz = cz; this.half = half; this.depth = depth;
+        this.mass = 0; this.sx = 0; this.sy = 0; this.sz = 0; this.child = null; this.p = -1;
+      }
+      get isLeaf(){ return this.child === null; }
+    }
+    function childIndex(node, x, y, z){
+      let idx = 0; if (x >= node.cx) idx |= 1; if (y >= node.cy) idx |= 2; if (z >= node.cz) idx |= 4; return idx;
+    }
+    function ensureChildren(node){
+      if (node.child) return;
+      const h = node.half * 0.5; node.child = new Array(8);
+      for (let i=0;i<8;i++) node.child[i] = new Node(node.cx + ((i&1)?h:-h), node.cy + ((i&2)?h:-h), node.cz + ((i&4)?h:-h), h, node.depth + 1);
+    }
+    function buildTree(root, n){
+      root.mass = 0; root.sx = 0; root.sy = 0; root.sz = 0; root.child = null; root.p = -1;
+      for (let i=0;i<n;i++) insertClean(root, i);
+    }
+    function insertClean(node, i){
+      const px = pxArr[i*3], py = pxArr[i*3+1], pz = pxArr[i*3+2], m = massArr[i];
+      node.mass += m; node.sx += m * px; node.sy += m * py; node.sz += m * pz;
+      if (node.isLeaf){
+        if (node.p === -1){ node.p = i; return; }
+        if (node.depth >= MAX_DEPTH) return;
+        const existing = node.p; node.p = -1; ensureChildren(node);
+        insertClean(node.child[childIndex(node, pxArr[existing*3], pxArr[existing*3+1], pxArr[existing*3+2])], existing);
+        insertClean(node.child[childIndex(node, px, py, pz)], i); return;
+      }
+      insertClean(node.child[childIndex(node, px, py, pz)], i);
+    }
+    function accelFromNode(i, node, theta, eps2, G){
+      if (node.mass <= 0) return [0,0,0];
+      const x = pxArr[i*3], y = pxArr[i*3+1], z = pxArr[i*3+2];
+      let dx = (node.sx/node.mass) - x, dy = (node.sy/node.mass) - y, dz = (node.sz/node.mass) - z;
+      const dist2 = dx*dx + dy*dy + dz*dz + eps2;
+      
+      if (node.isLeaf){
+        const j = node.p; if (j === -1 || j === i) return [0,0,0];
+        dx = pxArr[j*3] - x; dy = pxArr[j*3+1] - y; dz = pxArr[j*3+2] - z;
+        const inv3 = Math.pow(dx*dx + dy*dy + dz*dz + eps2, -1.5);
+        const s = G * massArr[j] * inv3; return [dx*s, dy*s, dz*s];
+      }
+      if ((node.half * 2) / Math.sqrt(dist2) < theta){
+        const s = G * node.mass * Math.pow(dist2, -1.5); return [dx*s, dy*s, dz*s];
+      }
+      let ax=0, ay=0, az=0;
+      for (let k=0;k<8;k++){
+        if (!node.child[k] || node.child[k].mass <= 0) continue;
+        const a = accelFromNode(i, node.child[k], theta, eps2, G);
+        ax += a[0]; ay += a[1]; az += a[2];
+      }
+      return [ax, ay, az];
+    }
+
+    // =========================================================
+    // 3. STATE & THREE.JS SETUP
+    // =========================================================
+    const state = {
+      G: 1.00, eps: 2.00, dt: 0.016, count: 2500, baseSize: 2.5, paused: false, mode: "velocity",
+      theta: 0.70, boundsHalf: 250, worldHalf: 1200
+    };
+
+    let pxArr = new Float32Array(0), vxArr = new Float32Array(0), massArr = new Float32Array(0), colorArr = new Float32Array(0);
+    let simTime = 0, audioRunning = false, audioBands = { sub: 0, bass: 0, mid: 0, high: 0 };
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+    renderer.setPixelRatio(Math.min(2, window.devicePixelRatio)); renderer.setSize(innerWidth, innerHeight);
+    document.getElementById("root").appendChild(renderer.domElement);
+
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0x05050f, 0.0007);
+    const camera = new THREE.PerspectiveCamera(55, innerWidth/innerHeight, 0.1, 8000);
+    camera.position.set(0, 180, 550); // Angle to see both galaxy and landscape
+    
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true; controls.dampingFactor = 0.05; controls.maxPolarAngle = Math.PI * 0.6;
+
+    // --- Particles (Galaxy) ---
+    const partGeom = new THREE.BufferGeometry();
+    const partMat = new THREE.PointsMaterial({ size: state.baseSize, vertexColors: true, transparent: true, opacity: 0.9, depthWrite: false, blending: THREE.AdditiveBlending });
+    const particles = new THREE.Points(partGeom, partMat);
+    scene.add(particles);
+
+    // --- Audio Landscape (Floor) ---
+    const L_COLS = 64, L_ROWS = 80;
+    const landGeom = new THREE.PlaneGeometry(1600, 1200, L_COLS - 1, L_ROWS - 1);
+    landGeom.rotateX(-Math.PI / 2);
+    landGeom.translate(0, -300, 0); // Position far below the galaxy
+    landGeom.setAttribute('color', new THREE.BufferAttribute(new Float32Array(L_COLS * L_ROWS * 3), 3));
+    
+    const landWire = new THREE.Mesh(landGeom, new THREE.MeshBasicMaterial({ vertexColors: true, wireframe: true, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending }));
+    const landSolid = new THREE.Mesh(landGeom, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.05, side: THREE.DoubleSide }));
+    scene.add(landWire); scene.add(landSolid);
+    
+    const landHistory = Array.from({ length: L_ROWS }, () => new Float32Array(L_COLS));
+
+    // =========================================================
+    // 4. AUDIO PROCESSING (WEB AUDIO API)
+    // =========================================================
+    let analyser = null, dataArray = null;
+    document.getElementById('startBtn').addEventListener('click', async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const ctx = new AudioContext();
+        analyser = ctx.createAnalyser();
+        analyser.fftSize = 1024; analyser.smoothingTimeConstant = 0.8;
+        ctx.createMediaStreamSource(stream).connect(analyser);
+        dataArray = new Uint8Array(analyser.frequencyBinCount);
+        audioRunning = true;
+        document.getElementById('overlay').classList.add('hidden');
+      } catch (err) { alert('Microphone access needed for audio reactivity.\n' + err.message); }
+    });
+
+    function getFrequencyBands(data, sampleRate = 44100) {
+      const binHz = sampleRate / 1024;
+      const avg = (lo, hi) => {
+        let s = Math.max(0, Math.floor(lo / binHz)), e = Math.min(data.length - 1, Math.ceil(hi / binHz));
+        if (e <= s) return 0;
+        let sum = 0; for (let i = s; i <= e; i++) sum += data[i];
+        return (sum / (e - s + 1)) / 255;
+      };
+      return { sub: avg(20, 80), bass: avg(80, 250), mid: avg(250, 2000), high: avg(2000, 8000) };
+    }
+    const makeMeter = (v, w = 12) => '█'.repeat(Math.round(v * w)) + '░'.repeat(w - Math.round(v * w));
+
+    // =========================================================
+    // 5. UPDATE LOGIC (LANDSCAPE & GALAXY)
+    // =========================================================
+    const tmpCol = new THREE.Color();
+    function updateLandscape(t) {
+      const posArr = landGeom.attributes.position.array, colArr = landGeom.attributes.color.array;
+      
+      if (audioRunning) {
+        analyser.getByteFrequencyData(dataArray);
+        audioBands = getFrequencyBands(dataArray);
+        for (let r = L_ROWS - 1; r > 0; r--) landHistory[r].set(landHistory[r - 1]);
+        const step = Math.floor(analyser.frequencyBinCount / L_COLS);
+        for (let c = 0; c < L_COLS; c++) landHistory[0][c] = dataArray[c * step] / 255;
+
+        document.getElementById('b-sub').textContent = makeMeter(audioBands.sub);
+        document.getElementById('b-bass').textContent = makeMeter(audioBands.bass);
+        document.getElementById('b-mid').textContent = makeMeter(audioBands.mid);
+        document.getElementById('b-high').textContent = makeMeter(audioBands.high);
+      }
+
+      for (let r = 0; r < L_ROWS; r++) {
+        const hIdx = (L_ROWS - 1) - r, age = 1 - (hIdx / (L_ROWS - 1)) * 0.7;
+        for (let c = 0; c < L_COLS; c++) {
+          const vi = r * L_COLS + c, nx = c / (L_COLS - 1);
+          let amp = 0;
+
+          if (audioRunning) {
+            amp = landHistory[hIdx][c] * age;
+            posArr[vi * 3 + 1] = -300 + (amp * 250); // Landscape height
+            tmpCol.setHSL(0.55 - nx * 0.4, 0.8, 0.1 + amp * 0.8);
+          } else {
+            // Idle animation
+            const nz = r / (L_ROWS - 1);
+            amp = ((Math.sin(nx*5+t*0.6)*Math.cos(nz*3.5-t*0.4)+1)*0.5) * 0.2 * age;
+            posArr[vi * 3 + 1] = -300 + (amp * 150);
+            tmpCol.setHSL(0.6 + nx * 0.1, 0.6, 0.05 + amp * 2.0);
+          }
+          colArr[vi * 3] = tmpCol.r; colArr[vi * 3 + 1] = tmpCol.g; colArr[vi * 3 + 2] = tmpCol.b;
+        }
+      }
+      landGeom.attributes.position.needsUpdate = true; landGeom.attributes.color.needsUpdate = true;
+    }
+
+    function resetSim(){
+      simTime = 0; const n = state.count;
+      pxArr = new Float32Array(n*3); vxArr = new Float32Array(n*3);
+      massArr = new Float32Array(n); colorArr = new Float32Array(n*3);
+
+      for (let i=0;i<n;i++){
+        const p = randomPointInSphere(state.boundsHalf);
+        pxArr[i*3] = p[0]; pxArr[i*3+1] = p[1]*0.2; pxArr[i*3+2] = p[2]; // Flat galaxy
+        massArr[i] = 0.5 + Math.random()*2.0;
+
+        const r = Math.sqrt(p[0]*p[0] + p[2]*p[2]) + 1e-6;
+        const speed = 0.65 / Math.sqrt(r*0.05 + 1);
+        vxArr[i*3] = (-p[2] / r) * speed; vxArr[i*3+1] = (Math.random()-0.5) * 0.05; vxArr[i*3+2] = (p[0] / r) * speed;
+      }
+      partGeom.setAttribute("position", new THREE.BufferAttribute(pxArr, 3));
+      partGeom.setAttribute("color", new THREE.BufferAttribute(colorArr, 3));
+      partGeom.attributes.position.setUsage(THREE.DynamicDrawUsage);
+      partGeom.attributes.color.setUsage(THREE.DynamicDrawUsage);
+    }
+
+    function updateParticlesColorAndSize() {
+      const n = state.count; let maxVal = 1e-6;
+      
+      // Audio-reactive visual boosts
+      const audioBoost = audioRunning ? audioBands.bass * 0.8 : 0; 
+      partMat.size = state.baseSize * (1.0 + (audioRunning ? audioBands.mid * 2.5 : 0));
+
+      if (state.mode === "velocity") {
+        for(let i=0;i<n;i++) maxVal = Math.max(maxVal, vxArr[i*3]*vxArr[i*3] + vxArr[i*3+1]*vxArr[i*3+1] + vxArr[i*3+2]*vxArr[i*3+2]);
+        maxVal = Math.sqrt(maxVal);
+        for(let i=0;i<n;i++){
+          const v = Math.sqrt(vxArr[i*3]*vxArr[i*3] + vxArr[i*3+1]*vxArr[i*3+1] + vxArr[i*3+2]*vxArr[i*3+2]);
+          const [r,g,b] = hsvToRgb(0.66*(1 - clamp(v/maxVal,0,1)) + (audioRunning ? audioBands.high*0.2 : 0), 0.9, clamp(0.6 + audioBoost, 0, 1));
+          colorArr[i*3]=r; colorArr[i*3+1]=g; colorArr[i*3+2]=b;
+        }
+      } else if (state.mode === "mass") {
+        for(let i=0;i<n;i++){
+          const [r,g,b] = hsvToRgb(0.1 + clamp(massArr[i]/3,0,1)*0.7, 0.9, clamp(0.6 + audioBoost, 0, 1));
+          colorArr[i*3]=r; colorArr[i*3+1]=g; colorArr[i*3+2]=b;
+        }
+      } else {
+        for(let i=0;i<n;i++){
+          const t = clamp((pxArr[i*3+2] + state.boundsHalf)/(state.boundsHalf*2), 0, 1);
+          const [r,g,b] = hsvToRgb(0.6 - 0.5*t, 0.85, clamp(0.6 + audioBoost, 0, 1));
+          colorArr[i*3]=r; colorArr[i*3+1]=g; colorArr[i*3+2]=b;
+        }
+      }
+      partGeom.attributes.color.needsUpdate = true;
+    }
+
+    // =========================================================
+    // 6. MAIN LOOP & UI BINDINGS
+    // =========================================================
+    const rootTree = new Node(0,0,0, state.worldHalf, 0);
+    const clock = new THREE.Clock();
+    let frames = 0, lastTime = performance.now();
+
+    function step(){
+      const t = clock.getElapsedTime();
+      
+      // Update environment
+      updateLandscape(t);
+      controls.update();
+
+      // UI FPS
+      frames++; const now = performance.now();
+      if (now - lastTime >= 500) { document.getElementById("fps").textContent = Math.round(frames * 1000 / (now - lastTime)); frames = 0; lastTime = now; }
+
+      // Physics integration
+      if (!state.paused){
+        const n = state.count, eps2 = state.eps * state.eps;
+        
+        // ✨ AUDIO REACTIVE GRAVITY: Bass pulses increase gravitational pull dynamically
+        const dynamicG = state.G * (1.0 + (audioRunning ? audioBands.sub * 3.5 : 0));
+
+        rootTree.cx = 0; rootTree.cy = 0; rootTree.cz = 0; rootTree.half = state.worldHalf; rootTree.child = null;
+        buildTree(rootTree, n);
+
+        for (let i=0;i<n;i++){
+          const a = accelFromNode(i, rootTree, state.theta, eps2, dynamicG);
+          vxArr[i*3]   = (vxArr[i*3]   + a[0] * state.dt) * 0.999;
+          vxArr[i*3+1] = (vxArr[i*3+1] + a[1] * state.dt) * 0.999;
+          vxArr[i*3+2] = (vxArr[i*3+2] + a[2] * state.dt) * 0.999;
+
+          pxArr[i*3]   += vxArr[i*3]   * state.dt;
+          pxArr[i*3+1] += vxArr[i*3+1] * state.dt;
+          pxArr[i*3+2] += vxArr[i*3+2] * state.dt;
+
+          // Gentle bounding bounds to keep galaxy together over time
+          const r = Math.sqrt(pxArr[i*3]**2 + pxArr[i*3+1]**2 + pxArr[i*3+2]**2);
+          if (r > state.worldHalf * 0.8){
+            vxArr[i*3] -= (pxArr[i*3]/r)*0.005; vxArr[i*3+1] -= (pxArr[i*3+1]/r)*0.005; vxArr[i*3+2] -= (pxArr[i*3+2]/r)*0.005;
+          }
+        }
+        simTime += state.dt; document.getElementById("simt").textContent = simTime.toFixed(2);
+        updateParticlesColorAndSize();
+        partGeom.attributes.position.needsUpdate = true;
+      }
+
+      renderer.render(scene, camera);
+      requestAnimationFrame(step);
+    }
+
+    // Wiring UI
+    const bindSync = (id, prop, isFloat=true) => {
+      const el = document.getElementById(id), out = document.getElementById(id+"Out");
+      el.addEventListener("input", () => {
+        state[prop] = isFloat ? parseFloat(el.value) : parseInt(el.value);
+        if(out) out.textContent = isFloat ? state[prop].toFixed(2) : state[prop];
+        if(id === "count") resetSim();
+      });
+    };
+    bindSync("g", "G"); bindSync("eps", "eps"); bindSync("count", "count", false);
+    document.getElementById("mode").addEventListener("change", (e) => state.mode = e.target.value);
+    document.getElementById("pauseBtn").addEventListener("click", (e) => { state.paused = !state.paused; e.target.textContent = state.paused ? "▶ Resume" : "⏸ Pause"; });
+    document.getElementById("resetBtn").addEventListener("click", resetSim);
+    window.addEventListener("resize", () => { renderer.setSize(innerWidth, innerHeight); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); });
+
+    // Boot
+    document.getElementById("pcount").textContent = state.count;
+    resetSim(); requestAnimationFrame(step);
+  </script>
+</body>
+</html>

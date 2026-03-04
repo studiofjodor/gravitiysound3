@@ -3,65 +3,42 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>⬡ Audio-Reactive Gravity</title>
+  <title>Stereo Nebula | Audio Gravity</title>
   <style>
-    html, body { margin:0; padding:0; height:100%; overflow:hidden; background:#05050f; color:#e9eef7; font-family: 'Courier New', Courier, ui-sans-serif, system-ui; }
+    html, body { margin:0; padding:0; height:100%; overflow:hidden; background:#000; color:#fff; font-family: system-ui, sans-serif; }
     #root { position:fixed; inset:0; }
     canvas { display:block; }
 
-    /* Soundscape Overlay */
     #overlay {
-      position: fixed; inset: 0;
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-      gap: 20px; z-index: 50; background: rgba(5, 5, 15, 0.85); backdrop-filter: blur(4px);
-      transition: opacity 0.5s;
+      position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+      background: rgba(0, 0, 0, 0.85); backdrop-filter: blur(10px); z-index: 50; transition: opacity 0.8s ease;
     }
     #overlay.hidden { opacity: 0; pointer-events: none; }
-    .label { font-size: 11px; letter-spacing: 0.3em; text-transform: uppercase; color: rgba(255,255,255,0.5); }
-    #startBtn {
-      pointer-events: all; padding: 14px 36px; background: rgba(255,255,255,0.05);
-      border: 1px solid rgba(255,255,255,0.22); color: #fff; cursor: pointer;
-      font-family: inherit; font-size: 12px; letter-spacing: 0.25em; text-transform: uppercase;
-      border-radius: 8px; transition: all 0.3s;
-    }
-    #startBtn:hover { border-color: rgba(255,255,255,0.8); background: rgba(255,255,255,0.1); transform: scale(1.02); }
-
-    /* Gravity HUD & Controls */
-    .hud {
-      position:fixed; top:12px; left:12px; font-size:11px; line-height:1.4;
-      background:rgba(0,0,0,.4); border:1px solid rgba(255,255,255,.1);
-      padding:10px 12px; border-radius:10px; backdrop-filter: blur(8px); user-select:none; z-index: 10;
-    }
-    .panel {
-      position:fixed; top:85px; left:12px; width:280px;
-      background:rgba(0,0,0,.4); border:1px solid rgba(255,255,255,.1);
-      padding:12px; border-radius:10px; backdrop-filter: blur(8px); user-select:none; z-index: 10;
-    }
-    .row { display:flex; align-items:center; gap:10px; margin:8px 0; font-size:11px; }
-    .row label { flex: 1 1 auto; opacity:.9; }
-    .row output { width:60px; text-align:right; font-variant-numeric: tabular-nums; opacity:.9; }
-    input[type="range"] { width:100%; accent-color: #7ba2ff; }
-    select, button.ui-btn {
-      background:rgba(255,255,255,.08); color:#e9eef7; border:1px solid rgba(255,255,255,.15);
-      border-radius:6px; padding:6px 10px; font-size:11px; font-family: inherit;
-    }
-    button.ui-btn { cursor:pointer; flex: 1; text-transform: uppercase; letter-spacing: 1px; }
-    button.ui-btn:active { transform: translateY(1px); }
-    .btnrow { display:flex; gap:10px; margin-top:12px; }
-
-    /* Audio Bands */
-    #bands {
-      position: fixed; bottom: 20px; right: 20px; font-size: 10px;
-      letter-spacing: 0.12em; text-transform: uppercase; color: rgba(255,255,255,0.4);
-      text-align: right; line-height: 2.2; pointer-events: none; z-index: 10;
-      background:rgba(0,0,0,.4); border:1px solid rgba(255,255,255,.1); padding:10px; border-radius:10px;
-    }
-    #bands span { display: inline-block; min-width: 90px; text-align: left; color: #7ba2ff; }
     
-    .hint {
-      position:fixed; bottom:20px; left:50%; transform:translateX(-50%); font-size:11px; opacity:.6;
-      letter-spacing: 0.1em; text-transform: uppercase; user-select:none; z-index: 10;
+    .title { font-size: 24px; font-weight: 200; letter-spacing: 0.2em; margin-bottom: 10px; text-transform: uppercase; }
+    .subtitle { font-size: 11px; letter-spacing: 0.1em; color: #888; margin-bottom: 40px; }
+    
+    button {
+      padding: 14px 40px; background: transparent; border: 1px solid rgba(255,255,255,0.3); color: #fff;
+      font-size: 12px; letter-spacing: 0.2em; text-transform: uppercase; border-radius: 4px;
+      cursor: pointer; transition: all 0.3s;
     }
+    button:hover { background: #fff; color: #000; box-shadow: 0 0 20px rgba(255,255,255,0.5); }
+
+    .hud {
+      position: fixed; bottom: 20px; left: 20px; font-size: 10px; letter-spacing: 0.15em;
+      color: rgba(255,255,255,0.5); text-transform: uppercase; pointer-events: none;
+    }
+    
+    .stereo-meters {
+      position: fixed; bottom: 20px; right: 20px; display: flex; gap: 20px; pointer-events: none;
+    }
+    .meter-col { display: flex; flex-direction: column; gap: 4px; align-items: center; }
+    .meter-label { font-size: 9px; letter-spacing: 2px; color: #777; }
+    .bar { width: 4px; height: 60px; background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden; position: relative; }
+    .fill { position: absolute; bottom: 0; left: 0; width: 100%; height: 0%; background: #fff; transition: height 0.05s; }
+    .fill.left { background: #00f0ff; box-shadow: 0 0 10px #00f0ff; }
+    .fill.right { background: #ff0055; box-shadow: 0 0 10px #ff0055; }
   </style>
 </head>
 <body>
@@ -69,48 +46,26 @@
   <div id="root"></div>
 
   <div id="overlay">
-    <div class="label">Audio-Reactive Gravity</div>
-    <button id="startBtn">● Enable Microphone</button>
-    <div class="label">Three.js · Web Audio API · Barnes-Hut</div>
+    <div class="title">Stereo Nebula</div>
+    <div class="subtitle">Binaural Gravity Simulation</div>
+    <button id="startBtn">Enable Audio</button>
   </div>
 
-  <div class="hud" id="hud">
-    <div>FPS: <span id="fps">--</span></div>
-    <div>Particles: <span id="pcount">--</span></div>
-    <div>Sim Time: <span id="simt">0.00</span> s</div>
+  <div class="hud">
+    Drag to orbit · Scroll to zoom<br><br>
+    Particles: 50,000
   </div>
 
-  <div class="panel">
-    <div class="row"><label for="g">Base Gravity (G)</label><output id="gOut">1.00</output></div>
-    <input id="g" type="range" min="0.00" max="5.00" step="0.01" value="1.00" />
-
-    <div class="row"><label for="eps">Softening ε</label><output id="epsOut">2.00</output></div>
-    <input id="eps" type="range" min="0.10" max="20.00" step="0.10" value="2.00" />
-
-    <div class="row"><label for="count">Particle Count</label><output id="countOut">2500</output></div>
-    <input id="count" type="range" min="500" max="5000" step="100" value="2500" />
-
-    <div class="row"><label for="mode">Colour Mode</label></div>
-    <select id="mode" style="width:100%;">
-      <option value="velocity">Velocity</option>
-      <option value="mass">Mass</option>
-      <option value="depth">Depth</option>
-    </select>
-
-    <div class="btnrow">
-      <button class="ui-btn" id="pauseBtn">⏸ Pause</button>
-      <button class="ui-btn" id="resetBtn">↺ Reset</button>
+  <div class="stereo-meters">
+    <div class="meter-col">
+      <div class="bar"><div class="fill left" id="meterL"></div></div>
+      <div class="meter-label">L</div>
+    </div>
+    <div class="meter-col">
+      <div class="bar"><div class="fill right" id="meterR"></div></div>
+      <div class="meter-label">R</div>
     </div>
   </div>
-
-  <div id="bands">
-    <div>Sub &nbsp;<span id="b-sub">————————————</span></div>
-    <div>Bass <span id="b-bass">————————————</span></div>
-    <div>Mid &nbsp;<span id="b-mid">————————————</span></div>
-    <div>High <span id="b-high">————————————</span></div>
-  </div>
-
-  <div class="hint">Drag to orbit · Scroll to zoom</div>
 
   <script type="importmap">
     {
@@ -124,322 +79,246 @@
   <script type="module">
     import * as THREE from "three";
     import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+    import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
+    import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
+    import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
 
-    // =========================================================
-    // 1. HELPERS & MATH
-    // =========================================================
-    function clamp(x, a, b){ return Math.max(a, Math.min(b, x)); }
-    function hsvToRgb(h, s, v){
-      h = ((h % 1) + 1) % 1; const i = Math.floor(h * 6), f = h * 6 - i;
-      const p = v * (1 - s), q = v * (1 - f * s), t = v * (1 - (1 - f) * s);
-      switch (i % 6){
-        case 0: return [v, t, p]; case 1: return [q, v, p]; case 2: return [p, v, t];
-        case 3: return [p, q, v]; case 4: return [t, p, v]; case 5: return [v, p, q];
-      }
-    }
-    function randn(){
-      let u = 0, v = 0; while(u === 0) u = Math.random(); while(v === 0) v = Math.random();
-      return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
-    }
-    function randomPointInSphere(radius){
-      let x = randn(), y = randn(), z = randn(); const len = Math.sqrt(x*x + y*y + z*z) || 1;
-      const r = radius * Math.cbrt(Math.random()); return [(x/len)*r, (y/len)*r, (z/len)*r];
-    }
+    // --- CONFIG ---
+    const NUM_PARTICLES = 50000;
+    const BOUNDS = 400;
+    
+    // --- THREE.JS SETUP ---
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0x000000, 0.001);
 
-    // =========================================================
-    // 2. BARNES-HUT OCTREE (GRAVITY PHYSICS)
-    // =========================================================
-    const MAX_DEPTH = 18;
-    class Node {
-      constructor(cx, cy, cz, half, depth){
-        this.cx = cx; this.cy = cy; this.cz = cz; this.half = half; this.depth = depth;
-        this.mass = 0; this.sx = 0; this.sy = 0; this.sz = 0; this.child = null; this.p = -1;
-      }
-      get isLeaf(){ return this.child === null; }
-    }
-    function childIndex(node, x, y, z){
-      let idx = 0; if (x >= node.cx) idx |= 1; if (y >= node.cy) idx |= 2; if (z >= node.cz) idx |= 4; return idx;
-    }
-    function ensureChildren(node){
-      if (node.child) return;
-      const h = node.half * 0.5; node.child = new Array(8);
-      for (let i=0;i<8;i++) node.child[i] = new Node(node.cx + ((i&1)?h:-h), node.cy + ((i&2)?h:-h), node.cz + ((i&4)?h:-h), h, node.depth + 1);
-    }
-    function buildTree(root, n){
-      root.mass = 0; root.sx = 0; root.sy = 0; root.sz = 0; root.child = null; root.p = -1;
-      for (let i=0;i<n;i++) insertClean(root, i);
-    }
-    function insertClean(node, i){
-      const px = pxArr[i*3], py = pxArr[i*3+1], pz = pxArr[i*3+2], m = massArr[i];
-      node.mass += m; node.sx += m * px; node.sy += m * py; node.sz += m * pz;
-      if (node.isLeaf){
-        if (node.p === -1){ node.p = i; return; }
-        if (node.depth >= MAX_DEPTH) return;
-        const existing = node.p; node.p = -1; ensureChildren(node);
-        insertClean(node.child[childIndex(node, pxArr[existing*3], pxArr[existing*3+1], pxArr[existing*3+2])], existing);
-        insertClean(node.child[childIndex(node, px, py, pz)], i); return;
-      }
-      insertClean(node.child[childIndex(node, px, py, pz)], i);
-    }
-    function accelFromNode(i, node, theta, eps2, G){
-      if (node.mass <= 0) return [0,0,0];
-      const x = pxArr[i*3], y = pxArr[i*3+1], z = pxArr[i*3+2];
-      let dx = (node.sx/node.mass) - x, dy = (node.sy/node.mass) - y, dz = (node.sz/node.mass) - z;
-      const dist2 = dx*dx + dy*dy + dz*dz + eps2;
-      
-      if (node.isLeaf){
-        const j = node.p; if (j === -1 || j === i) return [0,0,0];
-        dx = pxArr[j*3] - x; dy = pxArr[j*3+1] - y; dz = pxArr[j*3+2] - z;
-        const inv3 = Math.pow(dx*dx + dy*dy + dz*dz + eps2, -1.5);
-        const s = G * massArr[j] * inv3; return [dx*s, dy*s, dz*s];
-      }
-      if ((node.half * 2) / Math.sqrt(dist2) < theta){
-        const s = G * node.mass * Math.pow(dist2, -1.5); return [dx*s, dy*s, dz*s];
-      }
-      let ax=0, ay=0, az=0;
-      for (let k=0;k<8;k++){
-        if (!node.child[k] || node.child[k].mass <= 0) continue;
-        const a = accelFromNode(i, node.child[k], theta, eps2, G);
-        ax += a[0]; ay += a[1]; az += a[2];
-      }
-      return [ax, ay, az];
-    }
+    const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 1, 2000);
+    camera.position.set(0, 150, 400);
 
-    // =========================================================
-    // 3. STATE & THREE.JS SETUP
-    // =========================================================
-    const state = {
-      G: 1.00, eps: 2.00, dt: 0.016, count: 2500, baseSize: 2.5, paused: false, mode: "velocity",
-      theta: 0.70, boundsHalf: 250, worldHalf: 1200
-    };
-
-    let pxArr = new Float32Array(0), vxArr = new Float32Array(0), massArr = new Float32Array(0), colorArr = new Float32Array(0);
-    let simTime = 0, audioRunning = false, audioBands = { sub: 0, bass: 0, mid: 0, high: 0 };
-
-    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
-    renderer.setPixelRatio(Math.min(2, window.devicePixelRatio)); renderer.setSize(innerWidth, innerHeight);
+    const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "high-performance" });
+    renderer.setSize(innerWidth, innerHeight);
+    renderer.setPixelRatio(Math.min(2, window.devicePixelRatio));
     document.getElementById("root").appendChild(renderer.domElement);
 
-    const scene = new THREE.Scene();
-    scene.fog = new THREE.FogExp2(0x05050f, 0.0007);
-    const camera = new THREE.PerspectiveCamera(55, innerWidth/innerHeight, 0.1, 8000);
-    camera.position.set(0, 180, 550); // Angle to see both galaxy and landscape
-    
     const controls = new OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true; controls.dampingFactor = 0.05; controls.maxPolarAngle = Math.PI * 0.6;
+    controls.enableDamping = true; controls.dampingFactor = 0.04;
+    controls.autoRotate = true; controls.autoRotateSpeed = 0.5;
 
-    // --- Particles (Galaxy) ---
-    const partGeom = new THREE.BufferGeometry();
-    const partMat = new THREE.PointsMaterial({ size: state.baseSize, vertexColors: true, transparent: true, opacity: 0.9, depthWrite: false, blending: THREE.AdditiveBlending });
-    const particles = new THREE.Points(partGeom, partMat);
+    // --- POST PROCESSING (BLOOM) ---
+    const renderScene = new RenderPass(scene, camera);
+    const bloomPass = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 1.8, 0.5, 0.1);
+    const composer = new EffectComposer(renderer);
+    composer.addPass(renderScene);
+    composer.addPass(bloomPass);
+
+    // --- PROCEDURAL PARTICLE TEXTURE ---
+    function createCircleTexture() {
+      const canvas = document.createElement('canvas'); canvas.width = 32; canvas.height = 32;
+      const ctx = canvas.getContext('2d');
+      const gradient = ctx.createRadialGradient(16, 16, 0, 16, 16, 16);
+      gradient.addColorStop(0, 'rgba(255,255,255,1)');
+      gradient.addColorStop(0.2, 'rgba(255,255,255,0.8)');
+      gradient.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = gradient; ctx.fillRect(0, 0, 32, 32);
+      return new THREE.CanvasTexture(canvas);
+    }
+
+    // --- PARTICLE SYSTEM ---
+    const geometry = new THREE.BufferGeometry();
+    const positions = new Float32Array(NUM_PARTICLES * 3);
+    const velocities = new Float32Array(NUM_PARTICLES * 3);
+    const colors = new Float32Array(NUM_PARTICLES * 3);
+    const bases = new Float32Array(NUM_PARTICLES); // Zur individuellen Variation
+
+    const colorLeft = new THREE.Color(0x00f0ff);  // Cyan
+    const colorRight = new THREE.Color(0xff0055); // Magenta/Pink
+
+    for (let i = 0; i < NUM_PARTICLES; i++) {
+      // Initiale Verteilung: Eine Art Galaxie-Scheibe
+      const radius = Math.random() * BOUNDS;
+      const theta = Math.random() * Math.PI * 2;
+      const yStr = (Math.random() - 0.5) * (BOUNDS * 0.1);
+      
+      positions[i*3]   = Math.cos(theta) * radius;
+      positions[i*3+1] = yStr;
+      positions[i*3+2] = Math.sin(theta) * radius;
+
+      // Start-Farbe (Mix)
+      colors[i*3] = 0.5; colors[i*3+1] = 0.5; colors[i*3+2] = 0.5;
+      bases[i] = Math.random();
+    }
+
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+    const material = new THREE.PointsMaterial({
+      size: 1.5,
+      map: createCircleTexture(),
+      vertexColors: true,
+      transparent: true,
+      opacity: 0.8,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending
+    });
+
+    const particles = new THREE.Points(geometry, material);
     scene.add(particles);
 
-    // --- Audio Landscape (Floor) ---
-    const L_COLS = 64, L_ROWS = 80;
-    const landGeom = new THREE.PlaneGeometry(1600, 1200, L_COLS - 1, L_ROWS - 1);
-    landGeom.rotateX(-Math.PI / 2);
-    landGeom.translate(0, -300, 0); // Position far below the galaxy
-    landGeom.setAttribute('color', new THREE.BufferAttribute(new Float32Array(L_COLS * L_ROWS * 3), 3));
-    
-    const landWire = new THREE.Mesh(landGeom, new THREE.MeshBasicMaterial({ vertexColors: true, wireframe: true, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending }));
-    const landSolid = new THREE.Mesh(landGeom, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.05, side: THREE.DoubleSide }));
-    scene.add(landWire); scene.add(landSolid);
-    
-    const landHistory = Array.from({ length: L_ROWS }, () => new Float32Array(L_COLS));
+    // --- AUDIO SETUP (STEREO SPLIT) ---
+    let audioCtx, analyserL, analyserR, dataL, dataR;
+    let audioRunning = false;
+    let bandsL = { sub: 0, mid: 0, high: 0 }, bandsR = { sub: 0, mid: 0, high: 0 };
 
-    // =========================================================
-    // 4. AUDIO PROCESSING (WEB AUDIO API)
-    // =========================================================
-    let analyser = null, dataArray = null;
     document.getElementById('startBtn').addEventListener('click', async () => {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        const ctx = new AudioContext();
-        analyser = ctx.createAnalyser();
-        analyser.fftSize = 1024; analyser.smoothingTimeConstant = 0.8;
-        ctx.createMediaStreamSource(stream).connect(analyser);
-        dataArray = new Uint8Array(analyser.frequencyBinCount);
+        audioCtx = new AudioContext();
+        
+        const source = audioCtx.createMediaStreamSource(stream);
+        const splitter = audioCtx.createChannelSplitter(2);
+        
+        analyserL = audioCtx.createAnalyser(); analyserL.fftSize = 512; analyserL.smoothingTimeConstant = 0.85;
+        analyserR = audioCtx.createAnalyser(); analyserR.fftSize = 512; analyserR.smoothingTimeConstant = 0.85;
+
+        source.connect(splitter);
+        splitter.connect(analyserL, 0); // Kanal 0 (Links)
+        splitter.connect(analyserR, 1); // Kanal 1 (Rechts)
+
+        dataL = new Uint8Array(analyserL.frequencyBinCount);
+        dataR = new Uint8Array(analyserR.frequencyBinCount);
+        
         audioRunning = true;
         document.getElementById('overlay').classList.add('hidden');
-      } catch (err) { alert('Microphone access needed for audio reactivity.\n' + err.message); }
+      } catch (err) {
+        alert('Mikrofonzugriff benötigt!\n' + err.message);
+      }
     });
 
-    function getFrequencyBands(data, sampleRate = 44100) {
-      const binHz = sampleRate / 1024;
-      const avg = (lo, hi) => {
-        let s = Math.max(0, Math.floor(lo / binHz)), e = Math.min(data.length - 1, Math.ceil(hi / binHz));
-        if (e <= s) return 0;
-        let sum = 0; for (let i = s; i <= e; i++) sum += data[i];
-        return (sum / (e - s + 1)) / 255;
+    function getBands(data) {
+      const avg = (start, end) => {
+        let sum = 0; for (let i = start; i < end; i++) sum += data[i];
+        return (sum / (end - start)) / 255;
       };
-      return { sub: avg(20, 80), bass: avg(80, 250), mid: avg(250, 2000), high: avg(2000, 8000) };
-    }
-    const makeMeter = (v, w = 12) => '█'.repeat(Math.round(v * w)) + '░'.repeat(w - Math.round(v * w));
-
-    // =========================================================
-    // 5. UPDATE LOGIC (LANDSCAPE & GALAXY)
-    // =========================================================
-    const tmpCol = new THREE.Color();
-    function updateLandscape(t) {
-      const posArr = landGeom.attributes.position.array, colArr = landGeom.attributes.color.array;
-      
-      if (audioRunning) {
-        analyser.getByteFrequencyData(dataArray);
-        audioBands = getFrequencyBands(dataArray);
-        for (let r = L_ROWS - 1; r > 0; r--) landHistory[r].set(landHistory[r - 1]);
-        const step = Math.floor(analyser.frequencyBinCount / L_COLS);
-        for (let c = 0; c < L_COLS; c++) landHistory[0][c] = dataArray[c * step] / 255;
-
-        document.getElementById('b-sub').textContent = makeMeter(audioBands.sub);
-        document.getElementById('b-bass').textContent = makeMeter(audioBands.bass);
-        document.getElementById('b-mid').textContent = makeMeter(audioBands.mid);
-        document.getElementById('b-high').textContent = makeMeter(audioBands.high);
-      }
-
-      for (let r = 0; r < L_ROWS; r++) {
-        const hIdx = (L_ROWS - 1) - r, age = 1 - (hIdx / (L_ROWS - 1)) * 0.7;
-        for (let c = 0; c < L_COLS; c++) {
-          const vi = r * L_COLS + c, nx = c / (L_COLS - 1);
-          let amp = 0;
-
-          if (audioRunning) {
-            amp = landHistory[hIdx][c] * age;
-            posArr[vi * 3 + 1] = -300 + (amp * 250); // Landscape height
-            tmpCol.setHSL(0.55 - nx * 0.4, 0.8, 0.1 + amp * 0.8);
-          } else {
-            // Idle animation
-            const nz = r / (L_ROWS - 1);
-            amp = ((Math.sin(nx*5+t*0.6)*Math.cos(nz*3.5-t*0.4)+1)*0.5) * 0.2 * age;
-            posArr[vi * 3 + 1] = -300 + (amp * 150);
-            tmpCol.setHSL(0.6 + nx * 0.1, 0.6, 0.05 + amp * 2.0);
-          }
-          colArr[vi * 3] = tmpCol.r; colArr[vi * 3 + 1] = tmpCol.g; colArr[vi * 3 + 2] = tmpCol.b;
-        }
-      }
-      landGeom.attributes.position.needsUpdate = true; landGeom.attributes.color.needsUpdate = true;
+      return { sub: avg(1, 4), mid: avg(10, 40), high: avg(80, 160) }; // Angepasste Bins für FFT 512
     }
 
-    function resetSim(){
-      simTime = 0; const n = state.count;
-      pxArr = new Float32Array(n*3); vxArr = new Float32Array(n*3);
-      massArr = new Float32Array(n); colorArr = new Float32Array(n*3);
-
-      for (let i=0;i<n;i++){
-        const p = randomPointInSphere(state.boundsHalf);
-        pxArr[i*3] = p[0]; pxArr[i*3+1] = p[1]*0.2; pxArr[i*3+2] = p[2]; // Flat galaxy
-        massArr[i] = 0.5 + Math.random()*2.0;
-
-        const r = Math.sqrt(p[0]*p[0] + p[2]*p[2]) + 1e-6;
-        const speed = 0.65 / Math.sqrt(r*0.05 + 1);
-        vxArr[i*3] = (-p[2] / r) * speed; vxArr[i*3+1] = (Math.random()-0.5) * 0.05; vxArr[i*3+2] = (p[0] / r) * speed;
-      }
-      partGeom.setAttribute("position", new THREE.BufferAttribute(pxArr, 3));
-      partGeom.setAttribute("color", new THREE.BufferAttribute(colorArr, 3));
-      partGeom.attributes.position.setUsage(THREE.DynamicDrawUsage);
-      partGeom.attributes.color.setUsage(THREE.DynamicDrawUsage);
-    }
-
-    function updateParticlesColorAndSize() {
-      const n = state.count; let maxVal = 1e-6;
-      
-      // Audio-reactive visual boosts
-      const audioBoost = audioRunning ? audioBands.bass * 0.8 : 0; 
-      partMat.size = state.baseSize * (1.0 + (audioRunning ? audioBands.mid * 2.5 : 0));
-
-      if (state.mode === "velocity") {
-        for(let i=0;i<n;i++) maxVal = Math.max(maxVal, vxArr[i*3]*vxArr[i*3] + vxArr[i*3+1]*vxArr[i*3+1] + vxArr[i*3+2]*vxArr[i*3+2]);
-        maxVal = Math.sqrt(maxVal);
-        for(let i=0;i<n;i++){
-          const v = Math.sqrt(vxArr[i*3]*vxArr[i*3] + vxArr[i*3+1]*vxArr[i*3+1] + vxArr[i*3+2]*vxArr[i*3+2]);
-          const [r,g,b] = hsvToRgb(0.66*(1 - clamp(v/maxVal,0,1)) + (audioRunning ? audioBands.high*0.2 : 0), 0.9, clamp(0.6 + audioBoost, 0, 1));
-          colorArr[i*3]=r; colorArr[i*3+1]=g; colorArr[i*3+2]=b;
-        }
-      } else if (state.mode === "mass") {
-        for(let i=0;i<n;i++){
-          const [r,g,b] = hsvToRgb(0.1 + clamp(massArr[i]/3,0,1)*0.7, 0.9, clamp(0.6 + audioBoost, 0, 1));
-          colorArr[i*3]=r; colorArr[i*3+1]=g; colorArr[i*3+2]=b;
-        }
-      } else {
-        for(let i=0;i<n;i++){
-          const t = clamp((pxArr[i*3+2] + state.boundsHalf)/(state.boundsHalf*2), 0, 1);
-          const [r,g,b] = hsvToRgb(0.6 - 0.5*t, 0.85, clamp(0.6 + audioBoost, 0, 1));
-          colorArr[i*3]=r; colorArr[i*3+1]=g; colorArr[i*3+2]=b;
-        }
-      }
-      partGeom.attributes.color.needsUpdate = true;
-    }
-
-    // =========================================================
-    // 6. MAIN LOOP & UI BINDINGS
-    // =========================================================
-    const rootTree = new Node(0,0,0, state.worldHalf, 0);
+    // --- PHYSICS & ANIMATION LOOP ---
     const clock = new THREE.Clock();
-    let frames = 0, lastTime = performance.now();
+    
+    // Positionen der Stereo-Attraktoren
+    const attL = new THREE.Vector3(-150, 0, 0);
+    const attR = new THREE.Vector3(150, 0, 0);
 
-    function step(){
-      const t = clock.getElapsedTime();
-      
-      // Update environment
-      updateLandscape(t);
-      controls.update();
+    function animate() {
+      requestAnimationFrame(animate);
+      const delta = Math.min(clock.getDelta(), 0.05); // Cap delta to prevent explosions
+      const time = clock.getElapsedTime();
 
-      // UI FPS
-      frames++; const now = performance.now();
-      if (now - lastTime >= 500) { document.getElementById("fps").textContent = Math.round(frames * 1000 / (now - lastTime)); frames = 0; lastTime = now; }
+      if (audioRunning) {
+        analyserL.getByteFrequencyData(dataL);
+        analyserR.getByteFrequencyData(dataR);
+        bandsL = getBands(dataL);
+        bandsR = getBands(dataR);
 
-      // Physics integration
-      if (!state.paused){
-        const n = state.count, eps2 = state.eps * state.eps;
-        
-        // ✨ AUDIO REACTIVE GRAVITY: Bass pulses increase gravitational pull dynamically
-        const dynamicG = state.G * (1.0 + (audioRunning ? audioBands.sub * 3.5 : 0));
-
-        rootTree.cx = 0; rootTree.cy = 0; rootTree.cz = 0; rootTree.half = state.worldHalf; rootTree.child = null;
-        buildTree(rootTree, n);
-
-        for (let i=0;i<n;i++){
-          const a = accelFromNode(i, rootTree, state.theta, eps2, dynamicG);
-          vxArr[i*3]   = (vxArr[i*3]   + a[0] * state.dt) * 0.999;
-          vxArr[i*3+1] = (vxArr[i*3+1] + a[1] * state.dt) * 0.999;
-          vxArr[i*3+2] = (vxArr[i*3+2] + a[2] * state.dt) * 0.999;
-
-          pxArr[i*3]   += vxArr[i*3]   * state.dt;
-          pxArr[i*3+1] += vxArr[i*3+1] * state.dt;
-          pxArr[i*3+2] += vxArr[i*3+2] * state.dt;
-
-          // Gentle bounding bounds to keep galaxy together over time
-          const r = Math.sqrt(pxArr[i*3]**2 + pxArr[i*3+1]**2 + pxArr[i*3+2]**2);
-          if (r > state.worldHalf * 0.8){
-            vxArr[i*3] -= (pxArr[i*3]/r)*0.005; vxArr[i*3+1] -= (pxArr[i*3+1]/r)*0.005; vxArr[i*3+2] -= (pxArr[i*3+2]/r)*0.005;
-          }
-        }
-        simTime += state.dt; document.getElementById("simt").textContent = simTime.toFixed(2);
-        updateParticlesColorAndSize();
-        partGeom.attributes.position.needsUpdate = true;
+        // UI Updates
+        document.getElementById('meterL').style.height = `${bandsL.sub * 100}%`;
+        document.getElementById('meterR').style.height = `${bandsR.sub * 100}%`;
       }
 
-      renderer.render(scene, camera);
-      requestAnimationFrame(step);
+      const pos = geometry.attributes.position.array;
+      const col = geometry.attributes.color.array;
+
+      // Basis-Gravitation + Audio Boost
+      const baseG = 1500;
+      const massL = baseG + (bandsL.sub * 15000); 
+      const massR = baseG + (bandsR.sub * 15000);
+      
+      // Wirbelkraft (Tangential) gesteuert durch Mitten
+      const swirlL = 0.5 + bandsL.mid * 3.0;
+      const swirlR = 0.5 + bandsR.mid * 3.0;
+
+      // Turbulenz durch Höhen
+      const noiseLevel = (bandsL.high + bandsR.high) * 0.5;
+
+      const up = new THREE.Vector3(0, 1, 0);
+      const pVec = new THREE.Vector3();
+      const dirL = new THREE.Vector3();
+      const dirR = new THREE.Vector3();
+      const crossL = new THREE.Vector3();
+      const crossR = new THREE.Vector3();
+
+      for (let i = 0; i < NUM_PARTICLES; i++) {
+        const i3 = i * 3;
+        pVec.set(pos[i3], pos[i3+1], pos[i3+2]);
+
+        // --- PHYSICS: ATTRACTOR LEFT ---
+        dirL.subVectors(attL, pVec);
+        const distSqL = dirL.lengthSq() + 500; // +500 Softening (verhindert Unendlichkeit)
+        const fL = massL / distSqL;
+        dirL.normalize();
+        
+        // --- PHYSICS: ATTRACTOR RIGHT ---
+        dirR.subVectors(attR, pVec);
+        const distSqR = dirR.lengthSq() + 500;
+        const fR = massR / distSqR;
+        dirR.normalize();
+
+        // --- TANGENTIAL FORCES (SWIRL) ---
+        crossL.crossVectors(dirL, up).normalize().multiplyScalar(swirlL * fL);
+        crossR.crossVectors(dirR, up).normalize().multiplyScalar(swirlR * fR);
+
+        // --- APPLY FORCES TO VELOCITY ---
+        // Anziehung + Wirbel
+        velocities[i3]   += (dirL.x * fL + crossL.x + dirR.x * fR + crossR.x) * delta;
+        velocities[i3+1] += (dirL.y * fL + crossL.y + dirR.y * fR + crossR.y) * delta;
+        velocities[i3+2] += (dirL.z * fL + crossL.z + dirR.z * fR + crossR.z) * delta;
+
+        // Turbulenz (Zittern bei Hi-Hats/Höhen)
+        if (noiseLevel > 0.1) {
+          velocities[i3]   += (Math.random() - 0.5) * noiseLevel * 2;
+          velocities[i3+1] += (Math.random() - 0.5) * noiseLevel * 2;
+          velocities[i3+2] += (Math.random() - 0.5) * noiseLevel * 2;
+        }
+
+        // Dämpfung (Friction im Raum)
+        velocities[i3]   *= 0.96;
+        velocities[i3+1] *= 0.96;
+        velocities[i3+2] *= 0.96;
+
+        // Position updaten
+        pos[i3]   += velocities[i3];
+        pos[i3+1] += velocities[i3+1];
+        pos[i3+2] += velocities[i3+2];
+
+        // --- COLOR BLENDING BASED ON INFLUENCE ---
+        // Finde heraus, ob Partikel eher von Links oder Rechts beeinflusst wird
+        const influenceRatio = fL / (fL + fR + 0.0001); // 1 = voll Links, 0 = voll Rechts
+        
+        // Mische die Farben sanft
+        col[i3]   += ( (colorLeft.r * influenceRatio + colorRight.r * (1 - influenceRatio)) - col[i3] ) * 0.1;
+        col[i3+1] += ( (colorLeft.g * influenceRatio + colorRight.g * (1 - influenceRatio)) - col[i3+1] ) * 0.1;
+        col[i3+2] += ( (colorLeft.b * influenceRatio + colorRight.b * (1 - influenceRatio)) - col[i3+2] ) * 0.1;
+        
+        // Helligkeit basierend auf Geschwindigkeit
+        const speed = Math.sqrt(velocities[i3]**2 + velocities[i3+1]**2 + velocities[i3+2]**2);
+        const glow = Math.min(speed * 0.2, 1.0);
+        col[i3]   += glow * 0.2;
+        col[i3+1] += glow * 0.2;
+        col[i3+2] += glow * 0.2;
+      }
+
+      geometry.attributes.position.needsUpdate = true;
+      geometry.attributes.color.needsUpdate = true;
+
+      controls.update();
+      composer.render(); // WICHTIG: Composer statt Renderer nutzen für Bloom!
     }
 
-    // Wiring UI
-    const bindSync = (id, prop, isFloat=true) => {
-      const el = document.getElementById(id), out = document.getElementById(id+"Out");
-      el.addEventListener("input", () => {
-        state[prop] = isFloat ? parseFloat(el.value) : parseInt(el.value);
-        if(out) out.textContent = isFloat ? state[prop].toFixed(2) : state[prop];
-        if(id === "count") resetSim();
-      });
-    };
-    bindSync("g", "G"); bindSync("eps", "eps"); bindSync("count", "count", false);
-    document.getElementById("mode").addEventListener("change", (e) => state.mode = e.target.value);
-    document.getElementById("pauseBtn").addEventListener("click", (e) => { state.paused = !state.paused; e.target.textContent = state.paused ? "▶ Resume" : "⏸ Pause"; });
-    document.getElementById("resetBtn").addEventListener("click", resetSim);
-    window.addEventListener("resize", () => { renderer.setSize(innerWidth, innerHeight); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); });
+    window.addEventListener("resize", () => {
+      camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
+      renderer.setSize(innerWidth, innerHeight); composer.setSize(innerWidth, innerHeight);
+    });
 
-    // Boot
-    document.getElementById("pcount").textContent = state.count;
-    resetSim(); requestAnimationFrame(step);
+    animate();
   </script>
 </body>
 </html>
